@@ -1,0 +1,104 @@
+#Classifier 1: Logistic Regression classifier Training
+train_set=read.csv("http://www.cs.toronto.edu/~rsalakhu/STA414_2015/digitstrain.txt",header=F)
+test_set=read.csv("http://www.cs.toronto.edu/~rsalakhu/STA414_2015/digitstest.txt",header=F)
+t = sapply(train_set[,65],as.numeric)
+x = sapply(train_set[,1:64],as.numeric)
+t_test = sapply(test_set[,65],as.numeric)
+x_test = sapply(test_set[,1:64],as.numeric)
+
+t0 = sapply(train_set[1:400,65],as.numeric); t1 = sapply(train_set[401:800,65],as.numeric)
+x0 = sapply(train_set[1:400,1:64],as.numeric); x1 = sapply(train_set[401:800,1:64],as.numeric)
+t0_test = sapply(test_set[1:200,65],as.numeric); t1_test = sapply(test_set[201:400,65],as.numeric)
+x0_test = sapply(test_set[1:200,1:64],as.numeric); x1_test = sapply(test_set[201:400,1:64],as.numeric)
+img = matrix(x[1,], 8, byrow=F)  
+image(1:ncol(img),1:nrow(img),img, col = gray.colors(10))
+w = numeric(64); w0 = numeric(64); w1 = numeric(64) 
+eta = 0.01; iter=2000
+
+for (i in 1:iter)
+{sigmoid_function = function(xn) 
+{ 1/(1 + exp(-xn %*% w))}
+y = apply(x, 1, sigmoid_function)
+y0 = apply(x0,1,sigmoid_function)
+y1 = apply(x1,1,sigmoid_function)
+constant = as.matrix(t(y-t))%*%as.matrix(x)
+constant0 = as.matrix(t(y0-t0))%*%as.matrix(x0)
+constant1 = as.matrix(t(y1-t1))%*%as.matrix(x1)
+w = w - eta*t(constant)
+w0 = w0 - eta*t(constant0)
+w1 = w1 - eta*t(constant1)
+cross_entrop = -sum(log(y)*t+log(1-y)*(1-t))
+cross_entrop0 = -sum(log(y0)*t0+log(1-y0)*(1-t0))
+cross_entrop1 = -sum(log(y1)*t1+log(1-y1)*(1-t1))}
+log_lik_train = -cross_entrop;log_lik_train0 = -cross_entrop0;log_lik_train1 = -cross_entrop1
+y_test = apply(x_test, 1, sigmoid_function)
+y0_test = apply(x0_test, 1, sigmoid_function)
+y1_test = apply(x1_test, 1, sigmoid_function)
+log_lik_test<- sum(log(y_test)*t_test+log(1-y_test)*(1-t_test))
+log_lik_test0<- sum(log(y0_test)*t0_test+log(1-y0_test)*(1-t0_test))
+log_lik_test1<- sum(log(y1_test)*t1_test+log(1-y1_test)*(1-t1_test))
+# Average conditional log-likelihood on data cases; over two digit classes
+log_lik_train/800;log_lik_test/400
+#Over two digit classes
+log_lik_train0/400; log_lik_train1/400
+log_lik_test0/200; log_lik_test1/200
+ER_train=sum(round(y) != t)/ length(t)
+ER_test<-sum(round(y_test) != t_test)/length(t_test)
+ER_train; ER_test
+sum(round(y) != t);sum(round(y_test) != t_test)
+
+# Classifier 2: Conditional Gaussian Classifier Training
+#MLE for prior for class 0 and 1
+pi0=sum(t==0)/length(t);pi1=sum(t==1)/length(t)
+# MLE for mean of class 0 and 1
+x_train_0=sapply(subset(train_set,select=V1:V64,V65==0),as.numeric)
+x_train_1=sapply(subset(train_set,select=V1:V64,V65==1),as.numeric)
+mu0= colMeans(x_train_0)
+mu1=colMeans(x_train_1)
+# MLE for covariance matrix of class 0 and 1
+var0= cov(x_train_0)
+var1=cov(x_train_1)
+require(mvtnorm)
+normal_value=dmvnorm(x,mu1,var1,log=TRUE)-dmvnorm(x,mu0,var0,log=TRUE)
+
+sigmoid_function = function(z) 
+{ 1/(1 + exp(-z))}
+
+log_pos_train_unreg = sigmoid_function(normal_value)
+ER_train_cond_unreg=sum(round(log_pos_train_unreg) != t)/ length(t)
+normal_value_test=log(dmvnorm(x_test,mu1,var1))-log(dmvnorm(x_test,mu0,var0))
+log_pos_test_unreg = sigmoid_function(normal_value_test)
+ER_test_cond_unreg=sum(round(log_pos_test_unreg) != t_test)/ length(t_test)
+likelihood_train=sum(log(sigmoid_function(normal_value)))
+likelihood_test=sum(log(sigmoid_function(normal_value_test)))
+ER_train_cond_unreg;ER_test_cond_unreg; 
+likelihood_train;likelihood_test
+likelihood_train/800;likelihood_test/400
+sum(round(log_pos_test_unreg) != t_test);sum(round(log_pos_test_unreg) != t_test)
+likelihood_train0=sum(log(sigmoid_function(-normal_value))[1:400])
+likelihood_test0=sum(log(sigmoid_function(-normal_value_test))[1:200])
+likelihood_train1=sum(log(sigmoid_function(normal_value))[401:800])
+likelihood_test1=sum(log(sigmoid_function(normal_value_test))[201:400])
+likelihood_train0/400;likelihood_train1/400;likelihood_test0/200;likelihood_test1/200
+# Classifier 3: Regularized Conditional Gaussian Classifier Training
+regvar0=var0+(diag(64)*0.01)
+regvar1=var1+(diag(64)*0.01)
+normal_value_reg=log(dmvnorm(x,mu1,regvar1))-log(dmvnorm(x,mu0,regvar0))
+log_pos_train_reg = sigmoid_function(normal_value_reg)
+ER_train_cond_reg=sum(round(log_pos_train_reg) != t)/ length(t)
+normal_value_test_reg=log(dmvnorm(x_test,mu1,regvar1))-log(dmvnorm(x_test,mu0,regvar0))
+log_pos_test_reg = sigmoid_function(normal_value_test_reg)
+ER_test_cond_reg=sum(round(log_pos_test_reg) != t_test)/ length(t_test)
+likelihood_train_reg=sum(log(sigmoid_function(normal_value_reg)))
+likelihood_test_reg=sum(log(sigmoid_function(normal_value_test_reg)))
+
+likelihood_train_reg0=sum(log(sigmoid_function(-normal_value_reg))[1:400])
+likelihood_train_reg1=sum(log(sigmoid_function(normal_value_reg))[401:800])
+likelihood_test_reg0=sum(log(sigmoid_function(-normal_value_test_reg))[1:200])
+likelihood_test_reg1=sum(log(sigmoid_function(normal_value_test_reg))[201:400])
+ER_train_cond_reg;ER_test_cond_reg
+likelihood_train_reg;likelihood_test_reg
+likelihood_train_reg/800;likelihood_test_reg/400
+likelihood_train_reg0/400;likelihood_train_reg1/400;likelihood_test_reg0/200
+likelihood_test_reg1/200
+sum(round(log_pos_test_reg) != t_test);sum(round(log_pos_train_reg) != t)
